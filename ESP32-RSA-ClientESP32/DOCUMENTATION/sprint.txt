@@ -1,0 +1,36 @@
+Explain how you have done the task
+----------------------------------
+V.34
+1.  Sprintboard - github setup
+2.  Server - we used a tutarial WiFi client/server and test if it gets Comminication thru the client
+3.  Cilent - we used a tutarial WiFi client/server test to send a message 
+4.  LED - tested to turn the internal led PIN_13 ESP_32 thru client
+5.  Data -
+6.  Ambient - BUG sensor broken 
+7.  Report -   see on github 
+8.  Branches - Test branches before refactor " Master - standard setup " " Develop the branch we push to "
+               " Client -  developing " " Server developing " "Temp BUG " 
+
+V.35
+1.  homwork about the requierments 
+
+V.35 The last sprint Implement the function from the LIB and make it work
+
+V.36 step 1: generate AES-key.
+step 2: encrypt the AES key using server private key.
+step 3: encrypt the AES key using client public key.
+step 4: calculate hash for AES-key.
+step 5: create message1 (AES-key + hash)
+step 6: send message1
+step 7: recieve message2.
+step 8: calculate hash for message2.
+step 9: compare (calculated)hash for message2, with the hash recieved in message2.
+step 10: decrypt message1 using AES chifer key.
+Step 11: repeat step 7-10 forever.
+
+NOTES :
+-RSA is a method for encrypting and decrypting the message.
+-It involves public key and private key, where the public key is known 
+-to all and is used to encrypt the message whereas private key is only used to decrypt the encrypted message.
+
+
