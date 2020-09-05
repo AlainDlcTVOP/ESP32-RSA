@@ -1,0 +1,99 @@
+1. What did you do yesterday?
+2. What will you do today?
+3. Are there any impediments in your way?
+
+
+V.34
+Daily Standup
+
+* Monday 	1. no comments
+            2. Exam project startup info etc..
+            2. Read the requirements for the project
+            3. no comments
+---------------------------------------------------            
+* Tuesday	1. Sprintboard added issues 
+            2. Created usestories
+            2. Created developer branch
+            2. Added the crypto lib from its'learning
+            2. Started with the exam report
+            3. no comments
+---------------------------------------------------            
+* Wednesday	1. "-" Tuesday
+            2. Test the ESP server
+            2. Test the ESP client
+            2. Test LED
+            2. Test send data
+            2. Sprint review
+            3. Updated examreport
+---------------------------------------------------             
+* Thursday	
+            1. "-" Wednesday
+            2. Test ambient Sensor
+            2. Test Internal Sensor
+            2. Test External Sensor
+            2. Resarch on encrypted 
+            3. Ambient Sensor dosen't work
+---------------------------------------------------
+* Friday
+            1. "-" Thursday
+            2. "-" Thursday
+            3. "-" Thursday
+
+
+
+V.35
+Daily Standup
+
+* Monday	
+            1. Clean upp github
+            2. Setup for client servet project
+            2. Create menu
+            3. Ambient BUG
+---------------------------------------------------
+* Tuesday	
+            1. Starter develop the server/client implemented the new functions
+            2. Get Temp is working implementation on the server
+            3. Develop the menu for implement the menu for the client
+---------------------------------------------------            
+* Wednesday	
+            1. "-"
+            2. Code review for the client and the server
+---------------------------------------------------             
+            
+* Thursday	
+            2. Accounting day 
+---------------------------------------------------             
+
+* Friday
+            1. "-"
+            2. Develop the server client for krypt and examreport
+            3. Wifi connection in the school was bad
+            3. Strugle with the answer from the server to client
+--------------------------------------------------- 
+
+
+V.36
+Daily Standup
+
+* Monday	
+            1."-"
+            2. implement the key for de and krypto 
+            3. Server response from client
+---------------------------------------------------             
+* Tuesday	
+            2."-" 
+            2. Refactor Server Client
+ ---------------------------------------------------             
+* Wednesday	
+            1."-" 
+            2. Algorith for dekryp
+            2. Refactor 
+--------------------------------------------------- 
+* Thursday	  1."-" 
+            2. Algorith for dekryp
+            2. Refactor 
+--------------------------------------------------- 
+* Friday     1."-" 
+            2. Algorith for enkryp
+            2. Refactor 
+--------------------------------------------------- 
