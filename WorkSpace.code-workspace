@@ -1,0 +1,20 @@
+{
+	"folders": [
+		{
+			"name": "ESP32-RSA-Client",
+			"path": "ESP32-RSA-Client"
+		},
+		{
+			"name": "ESP32-RSA-Server",
+			"path": "ESP32-RSA-Server"
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"istream": "cpp",
+			"ostream": "cpp",
+			"array": "cpp",
+			"string": "cpp"
+		}
+	}
+}
