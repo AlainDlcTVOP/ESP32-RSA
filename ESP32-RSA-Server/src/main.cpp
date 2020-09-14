@@ -109,3 +109,4 @@ void aes_key()
     memcpy(message, temp5, RSA_SIZE + RSA_SIZE);
     memcpy(message + RSA_SIZE + RSA_SIZE, hash, HASH_SIZE);
 }
+}
