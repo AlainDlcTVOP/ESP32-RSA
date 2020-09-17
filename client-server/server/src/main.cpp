@@ -84,10 +84,10 @@ void setup()
 {
     Serial.begin(9600);
     delay(3000);
-   
+
     while (WL_CONNECTED != WiFi.status())
     {
- WiFi.begin(SSID, PASSWORD);
+        WiFi.begin(SSID, PASSWORD);
         Serial.print(".");
 
         delay(2000);
@@ -177,32 +177,63 @@ void loop()
             {
                 // AES
                 rsa = false;
-                if(aes256_decrypt(buffer, buffer) != 1U + sizeof(session_id)) {
+                if (aes256_decrypt(buffer, buffer) != 1U + sizeof(session_id))
+                {
                     response.length = 1U;
                     response.data[0] = BAD_REQUEST;
-                } else {
+                }
+                else
+                {
                     // Get the session id
+                    uint32_t temp_sessionid = buffer[0];
+
                     // compare it with session_id
-                    // if they are not the same => return UAUTH
+                    if (temp_sessionid != session_id)
+                    {
+                        // if they are not the same => return UAUTH
+                        response.data[0] = UNAUTH;
+                    }
+                    if (buffer[0] == TEMPERATURE)
+                    {
+                        response.length = 1U;
+                        response.data[0] = TEMPERATURE;
+                    }
+                    if (buffer[0] == TURN_LED_ON)
+                    {
+                        response.length = 1U;
+                        response.data[0] = TURN_LED_ON;
+                    }
+                    if (buffer[0] == TURN_LED_OFF)
+                    {
+                        response.length = 1U;
+                        response.data[0] = TURN_LED_OFF;
+                    }
+                    if (buffer[0] == CLOSE)
+                    {
+                        response.length = 1U;
+                        response.data[0] = CLOSE;
+                    }
                     // if buffer[0] == TEMPERATURE
                     // ...
                 }
             }
         }
 
-        if(rsa) {
+        if (rsa)
+        {
             uint8_t temp[RSA_SIZE] = {};
             rsa_private_encrypt(response.data, response.length, server_public_key, server_private_key, temp);
             rsa_public_encrypt(temp, RSA_BLOCK_SIZE, client_public_key, response.data);
             response.length = RSA_SIZE;
             rsa_public_encrypt(temp + RSA_BLOCK_SIZE, RSA_SIZE - RSA_BLOCK_SIZE, client_public_key, response.data + response.length);
             response.length += RSA_SIZE;
-
-        } else {
+        }
+        else
+        {
             response.length = aes256_encrypt(response.data, response.length, response.data);
         }
 
-        send_response(&response);        
+        send_response(&response);
     }
 } // This function is handling the clients request
 
