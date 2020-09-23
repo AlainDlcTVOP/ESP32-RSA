@@ -38,7 +38,8 @@ enum Status
     HASH_ERROR,
     BAD_REQUEST,
     DISCONNECTED,
-    UNKNOWN_ERROR
+    UNKNOWN_ERROR,
+    SESSION_ID_ERR
 };
 
 typedef struct
@@ -54,17 +55,14 @@ typedef struct
     uint8_t length;
 } response_t;
 
-union Mydata_response {
-    uint8_t command : 5;
-    float temp;
-};
 static void authenticate(void);
 static void run_command(uint8_t req_id);
 static void print_error(uint8_t error_id);
 static char read_command(const char *filter);
 
 static WiFiClient client;
-static uint32_t session_id = 10U;
+static uint32_t session_id = 0U;
+
 static uint8_t server_public_key[RSA_SIZE] = {
     0x92, 0xF4, 0x13, 0xDD, 0x91, 0xFE, 0x15, 0xD3, 0xCA, 0x3D, 0xD8, 0x65, 0x32, 0x8D, 0xC7, 0x64,
     0xA5, 0x7F, 0xF9, 0x4C, 0xE2, 0x9B, 0x03, 0x96, 0xF5, 0xB7, 0x80, 0x55, 0xDE, 0xB0, 0xEA, 0x58,
@@ -81,18 +79,9 @@ static uint8_t client_private_key[RSA_SIZE] = {
     0x43, 0x08, 0x4B, 0xC6, 0x6D, 0x16, 0xA6, 0xA8, 0x34, 0x47, 0x46, 0xDF, 0x82, 0xDA, 0x68, 0x52,
     0xF7, 0x31, 0x38, 0xA3, 0xA5, 0xAB, 0x6C, 0x02, 0xF1, 0xA6, 0x97, 0xFF, 0x0B, 0x14, 0x65, 0x01};
 
-static void print_data(uint8_t *data, uint8_t size)
-{
-    // Serial.printf("%f", (float)data[0]);
-    for (uint8_t i = 0; i < size; i++)
-    {
-        Serial.printf("%02X ", data[i]);
-    }
-    Serial.println();
-}
-
 static void print_error(uint8_t error_id)
 {
+    Serial.print(0);
 }
 
 static response_t post(request_t *req)
@@ -117,6 +106,15 @@ static response_t post(request_t *req)
 
     sha256(req->data, req->length, req->data + req->length);
     req->length += HASH_SIZE;
+#ifdef DEBUG
+    Serial.print("skickar ");
+    for (uint8_t i = 0; i < req->length; i++)
+    {
+
+        Serial.printf("%02X ", req->data[i]);
+    }
+    Serial.println("");
+#endif
 
     // Send the data to the server
     client.write(req->data, req->length);
@@ -140,6 +138,7 @@ static response_t post(request_t *req)
 
     if ((response.length != 2 * RSA_SIZE + HASH_SIZE) && (response.length != AES_CIPHER_SIZE + HASH_SIZE))
     {
+        Serial.println("här var det feeel!!");
         client.stop();
         response.status = BAD_REQUEST;
         return response;
@@ -152,42 +151,138 @@ static response_t post(request_t *req)
     {
         client.stop();
         response.status = HASH_ERROR;
+        Serial.println("fel fel fel ");
         return response;
     }
 
     // Make the response
-
+    if (response.length == RSA_SIZE * 2)
+    {
+#ifdef DEBUG
+        Serial.println("jadå");
+#endif
+        uint8_t temp[RSA_SIZE] = {};
+        uint8_t len = rsa_private_decrypt(response.data, client_public_key, client_private_key, temp);
+        len += rsa_private_decrypt(response.data + RSA_SIZE, client_public_key, client_private_key, temp + len);
+        if (len != RSA_SIZE)
+        {
+            response.length = 1U;
+            response.data[0] = BAD_REQUEST;
+        }
+        else
+        {
+            response.length = rsa_public_decrypt(temp, server_public_key, response.data);
+        }
+    }
+    response.status = OKAY;
     // Close the connection
     client.stop();
 
     return response;
 }
 
-static void run_command(uint8_t req_id)
+static void run_command(uint8_t command)
 {
-    request_t request = {};
-    union Mydata_response data;
-    data.command = req_id;
-    //memcpy(request.data, &data, request.length);
+    //skapa ett meddelande med commandot, session id.
+    uint8_t message[BUFSIZ] = {};
+    //Första byten i meddelandet skall vara kommandot (Enum:en)
+    message[0] = command;
+    //skapa en request_t, och mata in kommando, o sessionId i request_t:ns data.
+    request_t request;
+    request.length = 1U;
 
-    request.length = sizeof(data);
-    memcpy(request.data, &data, sizeof(data));
-
-    Serial.print("\nSent    : ");
-    for (uint8_t i = 0; i < request.length; i++)
+    //byte 2-5 skall vara session id
+    Serial.print("Session id:");
+    for (uint8_t i = 1; i < 5; i++)
     {
-        Serial.printf("%02x ", request.data[i]);
+        message[request.length] = (uint8_t)(session_id >> ((i - 1) * 8));
+        Serial.printf("%02X ", message[request.length]);
+        request.length++;
     }
+    Serial.println("");
 
-    Serial.println();
+    //kryptera med aes, använd post och skriv ut resultatet.
+    //använd aes256_encrypt på request_t:n .
+    aes256_encrypt(message, request.length, request.data);
 
+    request.length = AES_CIPHER_SIZE;
+    Serial.println("requestlength");
+    //skicka requesten till post.
     response_t response = post(&request);
 
-    Serial.print("Received: ");
-    print_data(response.data, response.length);
+    if (response.status == OKAY)
+    {
 
-    print_data(request.data, sizeof(data));
-    Serial.println("\n");
+        response.length = aes256_decrypt(response.data, response.data);
+#ifdef DEBUG
+        Serial.println("Avkrypterat data:");
+        for (uint8_t i = 0; i < response.length; i++)
+        {
+            Serial.printf("%02X ", response.data[i]);
+        }
+#endif
+        uint32_t reciveSessionId = 0;
+        for (uint8_t i = 1; i < 5; i++)
+        {
+#ifdef DEBUG
+            Serial.printf("%02X ", response.data[i]);
+#endif
+            reciveSessionId |= (response.data[i] << ((i - 1) * 8));
+        }
+        Serial.println("");
+        if (reciveSessionId == 0)
+        {
+            session_id = 0;
+        }
+        else if (session_id != reciveSessionId)
+        {
+            Serial.printf("Response length was %d\n", response.length);
+            Serial.printf("recieved session ID is %u \n", reciveSessionId);
+            Serial.printf(" session ID is %u \n", session_id);
+            response.status = SESSION_ID_ERR;
+            print_error(response.status);
+        }
+
+        if (response.data[0] == TEMPERATURE && response.status == OKAY)
+        {
+#ifdef DEBUG
+            Serial.println("typ 1 byten temp");
+#endif
+            double temprature;
+            char temporarebuffer[5];
+            for (uint8_t i = 5; i < response.length; i++)
+            {
+                temporarebuffer[i - 5] = response.data[i];
+            }
+
+            temprature = strtod(temporarebuffer, NULL);
+            Serial.printf("temprature is : %.2f\n", temprature);
+        }
+        else if (response.data[0] == TURN_LED_ON)
+        {
+            Serial.println("LED is on\n");
+        }
+        else if (response.data[0] == TURN_LED_OFF)
+        {
+            Serial.println("LED is off\n");
+        }
+        else if (response.data[0] == CLOSE)
+        {
+            Serial.println(" Closing client");
+            session_id = 0;
+        }
+        else
+        {
+            Serial.println("nädu");
+            Serial.print(response.data[0]);
+            Serial.println("");
+        }
+    }
+    else
+    {
+        Serial.println("fel status");
+        print_error(response.status);
+    }
 }
 
 static void authenticate(void)
@@ -196,6 +291,7 @@ static void authenticate(void)
 
     request_t request = {};
     request.data[0] = AUTH;
+
     request.length = 1U;
 
     const uint8_t *key = aes256_init_key(NULL);
@@ -213,13 +309,31 @@ static void authenticate(void)
     request.length += RSA_SIZE;
 
     response_t response = post(&request);
-
     if (response.status == OKAY)
     {
-        // assign response.status to sessen_id
+#ifdef DEBUG
+        for (uint8_t i = 0; i < response.length; i++)
+        {
+            Serial.printf("%02X ", response.data[i]);
+        }
+        Serial.println("That was the message");
+#endif
+    }
+    if (response.status == OKAY && response.length == 5U)
+    {
+
+        for (uint8_t i = 1; i < 5; i++)
+        {
+            session_id |= (response.data[i] << ((i - 1) * 8));
+#ifdef DEBUG
+            Serial.printf("%02X ", response.data[i]);
+#endif
+        }
+        Serial.printf("\nSession ID is %u after authentication\n", session_id);
     }
     else
     {
+        Serial.printf("error in response, lenght:%d, status %d\n", response.length, response.status);
         print_error(response.status);
     }
 }
@@ -232,11 +346,11 @@ void setup()
         delay(100);
     }
 
-    WiFi.begin(SSID, PASSWORD);
     while (WL_CONNECTED != WiFi.status())
     {
+        WiFi.begin(SSID, PASSWORD);
         Serial.print(".");
-        delay(1000);
+        delay(2000);
     }
 
     Serial.print("\nIP Address: ");
@@ -263,24 +377,28 @@ void loop()
     switch (command)
     {
     case 'A':
+        Serial.println("Nu kör vi authenticationenenen");
         authenticate();
         break;
     case 'O':
+        Serial.println("Nu kör vi turn led on");
         run_command(TURN_LED_ON);
         break;
 
     case 'F':
+        Serial.println("Nu kör vi turn led off");
         run_command(TURN_LED_OFF);
         break;
 
     case 'T':
+        Serial.println("Nu kör vi get temperature");
         run_command(TEMPERATURE);
-        Serial.printf("TEMP ");
-        Serial.printf("%f.2\n", temperatureRead());
+
         break;
 
     case 'C':
-        run_command(AUTH);
+        run_command(CLOSE);
+
         break;
     default:
         break;
@@ -289,6 +407,7 @@ void loop()
 
 static char read_command(const char *filter)
 {
+    //Serial.println("inne i read command");
     char command = 0;
     bool found = false;
 
@@ -302,10 +421,13 @@ static char read_command(const char *filter)
         if (Serial.available())
         {
             command = toupper(Serial.read());
+
             for (char *ptr = (char *)filter; *ptr; ptr++)
             {
+                //Serial.print(*ptr);
                 if (*ptr == command)
                 {
+                    //Serial.println("tadaa");
                     found = true;
                     break;
                 }
@@ -316,7 +438,4 @@ static char read_command(const char *filter)
     Serial.printf("%c\n\n", command);
 
     return command;
-}
-void read_temp()
-{
 }
