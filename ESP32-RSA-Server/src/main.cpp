@@ -10,16 +10,45 @@
 #include <esp32-hal.h>
 
 #define SSID "YA-LOCAL"
-#define PASSWORD "utbildning-2020"
+#define PASSWORD "utbildning2020"
 
-#define PORT (12345U)
+#define PORT 80
 #define BUFSIZE (3 * RSA_SIZE)
+#define SESSION_PERIOD (60000U)
 
-// PUBLIC_DECRYPT(PRIVATE_DECRYPT(REQ_ID | DATA)) | HASH => AUTH | AES KEY
-// AES_DECRYPT(REQ_ID | SESSION_ID) | HASH => TEMPERATURE | SESSION_ID
+enum Request
+{
+    AUTH,
+    CLOSE,
+    TEMPERATURE,
+    TURN_LED_ON,
+    TURN_LED_OFF
+};
 
-// PUBLIC_DECRYPT(PRIVATE_DECRYPT(RES_STATUS | SESSION_ID)) | HASH => OKAY | SESSION_ID
-// AES_DECRYPT(RES_STATUS | DATA) | HASH => OKAY | temperature
+enum Status
+{
+    OKAY,
+    UNAUTH,
+    EXPIRED,
+    TIMEOUT,
+    WAITING,
+    HASH_ERROR,
+    BAD_REQUEST,
+    DISCONNECTED,
+    UNKNOWN_ERROR
+};
+
+typedef struct
+{
+    uint8_t data[BUFSIZE];
+    uint8_t length;
+} response_t;
+
+typedef struct
+{
+    uint8_t session_Id[SESSION_PERIOD] = {};
+    uint32_t end_session;
+} session_t;
 
 static uint8_t client_public_key[RSA_SIZE] = {
     0xD1, 0x13, 0x2B, 0x14, 0x8E, 0xA4, 0x70, 0x89, 0xA0, 0x3E, 0x3B, 0x2E, 0x3F, 0xDD, 0xDC, 0xC0,
@@ -40,11 +69,24 @@ static uint8_t server_private_key[RSA_SIZE] = {
 static WiFiClient client;
 static WiFiServer server(PORT);
 static uint32_t session_id = 0U;
+//void handler_request(request_t *request);
+uint8_t message[RSA_BLOCK_SIZE] = {};
 
+unsigned long startMillis; //some global variables available anywhere in the program
+unsigned long currentMillis;
+const unsigned long period = 60000; //the value is Sa number of milliseconds
+bool time_controll();
 static void send_response(response_t *res)
 {
     sha256(res->data, res->length, res->data + res->length);
     res->length += HASH_SIZE;
+    Serial.print("skickar data:");
+    for (uint8_t i = 0; i < res->length; i++)
+    {
+        Serial.printf("%02X ", res->data[i]);
+    }
+    Serial.println("");
+
     client.write(res->data, res->length);
     client.flush();
 }
@@ -54,25 +96,29 @@ void setup()
     Serial.begin(9600);
     delay(3000);
 
-    WiFi.begin(SSID, PASSWORD);
     while (WL_CONNECTED != WiFi.status())
     {
+        WiFi.begin(SSID, PASSWORD);
         Serial.print(".");
-        delay(1000);
+
+        delay(2000);
     }
+    currentMillis = millis();
 
     Serial.print("\nIP Address: ");
     Serial.println(WiFi.localIP());
-
+    pinMode(LED_BUILTIN, OUTPUT);
     server.begin();
 }
 
 void loop()
 {
+
     client = server.available();
 
     if (client && client.connected())
     {
+        Serial.printf("client connect\n");
         // Wait on receiving data from the client
         while (!client.available())
         {
@@ -80,11 +126,14 @@ void loop()
         }
 
         // Read the received data
+        startMillis = millis();
+        Serial.printf("Start time is: %ul", startMillis);
+        bool rsa = true;
         uint8_t buffer[BUFSIZE] = {};
         uint8_t length = client.read(buffer, BUFSIZE);
 
         response_t response = {};
-
+        Serial.printf("Recive message\n");
         if ((length != 2 * RSA_SIZE + HASH_SIZE) && (length != AES_CIPHER_SIZE + HASH_SIZE))
         {
             response.length = 1U;
@@ -102,7 +151,6 @@ void loop()
             }
             else if (length == 2 * RSA_SIZE)
             {
-                // RSA
                 // Authentication (AUTH)
                 uint8_t temp[RSA_SIZE] = {};
                 uint8_t len = rsa_private_decrypt(buffer, server_public_key, server_private_key, temp);
@@ -117,39 +165,172 @@ void loop()
                     len = rsa_public_decrypt(temp, client_public_key, temp);
                     if (len != AES_KEY_SIZE + 1)
                     {
+                        Serial.println("Bad request");
                         response.length = 1U;
                         response.data[0] = BAD_REQUEST;
                     }
                     else if (temp[0] != AUTH)
                     {
+                        Serial.println("Also Bad request");
                         response.length = 1U;
                         response.data[0] = BAD_REQUEST;
                     }
                     else
                     {
+                        Serial.println("Good request request");
                         response.length = 1U;
                         response.data[0] = OKAY;
                         aes256_init_key(temp + 1);
                         randomSeed(micros());
                         session_id = random(1U, 0xFFFFFFF);
-                        for (uint8_t i = 0U; i < sizeof(session_id); i++)
-                        {
+
+                        Serial.println("");
+                        Serial.printf("Session id for authentication is: %u\n", session_id);
+                        for (uint8_t i = 0; i < sizeof(session_id); i++)
+                        { //Bit shift session id into response data, with lsb for index 1.
                             response.data[response.length] = (uint8_t)(session_id >> (i * 8));
+                            Serial.printf("%02X ", response.data[response.length]);
                             response.length++;
                         }
-
-                        // Encrypt the data using the private key of the server
-
-                        // Encrypt the result of the previous step using the public key of the client
+                        Serial.println("done");
                     }
                 }
             }
             else
             {
                 // AES
+
+                rsa = false;
+
+                if (aes256_decrypt(buffer, buffer) != 1U + sizeof(session_id))
+                {
+                    Serial.println("more bad requests");
+                    response.length = 1U;
+                    response.data[0] = BAD_REQUEST;
+                }
+                else
+                {
+                    Serial.println("Vamos!");
+
+                    uint32_t reciveSessionId = 0;
+                    for (uint8_t i = 1; i < 5; i++)
+                    {
+                        reciveSessionId |= (buffer[i] << ((i - 1) * 8));
+                    }
+                    if ((session_id) != reciveSessionId)
+                    {
+                        Serial.printf("session id %u reciveid = %u\n", session_id, reciveSessionId);
+                        response.length = 1U;
+                        response.data[0] = UNAUTH;
+                        Serial.println("error in session id");
+                    }
+
+                    if (buffer[0] == TEMPERATURE)
+                    {
+                        Serial.println("Oh its temperature time");
+                        char temptemprature[4] = {};
+
+                        response.data[0] = TEMPERATURE;
+                        response.length = 1U;
+                        for (uint8_t i = 1; i < 5; i++)
+                        { //Bit shift session id into response data, with MSB for index 1.
+                            response.data[response.length] = (uint8_t)(session_id >> ((i - 1) * 8));
+                            Serial.printf("%02X ", response.data[response.length]);
+                            response.length++;
+                        }
+
+                        dtostrf(temperatureRead(), 4, 1, temptemprature);
+                        Serial.printf("temperaturen vi skickar: %.2f\n", temperatureRead());
+                        memcpy(response.data + 5, temptemprature, sizeof(temptemprature));
+                        response.length += 4;
+                    }
+                    if (buffer[0] == TURN_LED_ON)
+                    {
+                        response.length = 1U;
+                        for (uint8_t i = 1; i < 5; i++)
+                        { //Bit shift session id into response data, with MSB for index 1.
+                            response.data[response.length] = (uint8_t)(session_id >> ((i - 1) * 8));
+                            Serial.printf("%02X ", response.data[response.length]);
+                            response.length++;
+                        }
+                        digitalWrite(LED_BUILTIN, 1);
+                        Serial.println("Turn led on please");
+                        response.data[0] = TURN_LED_ON;
+                    }
+                    if (buffer[0] == TURN_LED_OFF)
+                    {
+                        response.length = 1U;
+                        for (uint8_t i = 1; i < 5; i++)
+                        { //Bit shift session id into response data, with MSB for index 1.
+                            response.data[response.length] = (uint8_t)(session_id >> ((i - 1) * 8));
+                            Serial.printf("%02X ", response.data[response.length]);
+                            response.length++;
+                        }
+                        Serial.println("Turn led off please");
+                        digitalWrite(LED_BUILTIN, 0);
+                        response.data[0] = TURN_LED_OFF;
+                    }
+                    if (buffer[0] == CLOSE)
+                    {
+                        response.length = 1U;
+                        for (uint8_t i = 1; i < 5; i++)
+                        { //Bit shift session id into response data, with MSB for index 1.
+                            response.data[response.length] = (uint8_t)(session_id >> ((i - 1) * 8));
+                            Serial.printf("%02X ", response.data[response.length]);
+                            response.length++;
+                        }
+                        Serial.println("Close that connection for me good sir.");
+                        response.data[0] = CLOSE;
+                    }
+                }
             }
+        }
+
+        if (rsa)
+        {
+            for (uint8_t i = 0; i < response.length; i++)
+            {
+                Serial.printf("%02X ", response.data[i]);
+            }
+            Serial.println("done");
+            uint8_t temp[RSA_SIZE] = {};
+            rsa_private_encrypt(response.data, response.length, server_public_key, server_private_key, temp);
+            rsa_public_encrypt(temp, RSA_BLOCK_SIZE, client_public_key, response.data);
+            response.length = RSA_SIZE;
+            rsa_public_encrypt(temp + RSA_BLOCK_SIZE, RSA_SIZE - RSA_BLOCK_SIZE, client_public_key, response.data + response.length);
+            response.length += RSA_SIZE;
+        }
+        else
+        {
+            aes256_encrypt(response.data, response.length, response.data);
+            response.length = AES_CIPHER_SIZE;
         }
 
         send_response(&response);
     }
+    time_controll();
+} // This function is handling the clients request
+bool time_controll()
+{
+    currentMillis = millis();                  //get the current "time" (actually the number of milliseconds since the program started)
+    if (currentMillis - startMillis >= period) //test whether the period has elapsed
+    {
+
+        Serial.setTimeout(period);
+        Serial.println("close the connection");
+        startMillis = currentMillis;
+
+        response_t response = {};
+        session_id = 0;
+        response.data[0] = CLOSE;
+        response.length = 1U;
+        for (uint8_t i = 1; i < 5; i++)
+        { //Bit shift session id into response data, with MSB for index 1.
+            response.data[response.length] = (uint8_t)(session_id >> ((i - 1) * 8));
+            Serial.printf("%02X ", response.data[response.length]);
+            response.length++;
+        }
+        send_response(&response);
+    }
+    return true;
 }
