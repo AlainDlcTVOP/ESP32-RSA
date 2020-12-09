@@ -1,5 +1,5 @@
 *ESP32-RSA*
-**Data Integrity and Security in Communication**
+*Data Integrity and Security in Communication*
 Exam Work ProjectData Integrity and Security in CommunicationIn
 this project you shall make a safe and secure communication using SHA-256,
 AES-256 and RSA-512 between two nodes according to the requirements below.
