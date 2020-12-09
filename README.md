@@ -3,7 +3,7 @@
 * Exam Work ProjectData Integrity and Security in CommunicationIn
 * this project you shall make a safe and secure communication using SHA-256,
 * AES-256 and RSA-512 between two nodes according to the requirements below.
-**Requirements:**
+* **Requirements:**
 * 1.It shall be possible to have a menu system on the client for user interaction
 * 2.The client shall be able to change the state of the built in LED of the server
 * 3.The client shall be able to read the temperature from the server and display it in the terminala.If you use ESP32, there is an internal sensor in its chipb.
