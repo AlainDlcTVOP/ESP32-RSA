@@ -14,5 +14,5 @@
 * 9.The authentication and session establishment shall be done and secured using RSA-512
 * 10.The session between the nodes shall get expired after 1 minute if there is no communicationbetween the nodes.
 * In this case an automated reauthentication is required.
-* ProtocolDevices
+* **ProtocolDevices**
 * *Alain Alejandro De La Bassi Lucas OlssonTCP/IP* 
