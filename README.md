@@ -1,5 +1,5 @@
-# ESP32-RSA
-**Data Integrity and Security in Communication
+* ESP32-RSA *
+**Data Integrity and Security in Communication **
 Exam Work ProjectData Integrity and Security in CommunicationIn
 this project you shall make a safe and secure communication using SHA-256,
 AES-256 and RSA-512 between two nodes according to the requirements below.
@@ -15,4 +15,4 @@ If you use Teensy 3.5, you should connect a temperature sensor to the microcontr
 10.The session between the nodes shall get expired after 1 minute if there is no communicationbetween the nodes.
 In this case an automated reauthentication is required.
 ProtocolDevices
-**Alain Alejandro De La Bassi Lucas OlssonTCP/IP** 
+*Alain Alejandro De La Bassi Lucas OlssonTCP/IP* 
