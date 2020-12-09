@@ -15,4 +15,4 @@
 * 10.The session between the nodes shall get expired after 1 minute if there is no communicationbetween the nodes.
 * In this case an automated reauthentication is required.
 * **ProtocolDevices**
-* *Alain Alejandro De La Bassi Lucas OlssonTCP/IP* 
+* *Alain Alejandro De La Bassi and Lucas Olsson TCP/IP* 
